@@ -9,7 +9,11 @@ interface UploadedDoc {
   status: string;
 }
 
-export default function DocumentUpload() {
+interface DocumentUploadProps {
+  patientId?: number | null;
+}
+
+export default function DocumentUpload({ patientId }: DocumentUploadProps) {
   const queryClient = useQueryClient();
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
 
@@ -17,6 +21,9 @@ export default function DocumentUpload() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
+      if (patientId) {
+        formData.append("patientId", patientId.toString());
+      }
       const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -38,6 +45,10 @@ export default function DocumentUpload() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       queryClient.invalidateQueries({ queryKey: ["/api/records"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      if (patientId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/patients/${patientId}/records`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/patients/${patientId}`] });
+      }
     },
   });
 
