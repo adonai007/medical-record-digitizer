@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, ArrowRight } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Users, Plus, Clock } from "lucide-react";
+
+interface Patient {
+  id: number;
+  firstName: string;
+  lastName: string;
+  lastVisit: string | null;
+}
 
 export default function HomePage() {
   const { data: stats, isLoading } = useQuery<{
@@ -12,30 +19,38 @@ export default function HomePage() {
     documentTypes: Record<string, number>;
   }>({ queryKey: ["/api/stats"] });
 
+  const { data: recentPatients } = useQuery<Patient[]>({
+    queryKey: ["/api/patients/recent"],
+  });
+
+  const { data: patientStats } = useQuery<{ totalPatients: number }>({
+    queryKey: ["/api/patients/stats"],
+  });
+
   return (
     <div className="space-y-8">
       {/* Hero */}
       <div className="text-center py-8">
         <h1 className="text-4xl font-bold tracking-tight">
-          Digitaliza tu <span className="text-primary">Historial Medico</span>
+          Bienvenido a <span className="text-primary">DiarioMed</span>
         </h1>
         <p className="text-muted-foreground mt-3 text-lg max-w-2xl mx-auto">
-          Escanea tus documentos medicos fisicos y extrae datos estructurados automaticamente con IA Vision
+          Administra pacientes, digitaliza documentos medicos y mantiene un historial organizado con IA
         </p>
         <div className="mt-6 flex items-center justify-center gap-4">
           <Link
-            href="/upload"
+            href="/patients"
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
           >
-            <Upload className="h-5 w-5" />
-            Escanear documentos
+            <Users className="h-5 w-5" />
+            Ver pacientes
           </Link>
           <Link
-            href="/records"
+            href="/patients/new"
             className="inline-flex items-center gap-2 px-6 py-3 border rounded-lg font-medium hover:bg-muted transition-colors"
           >
-            <FileText className="h-5 w-5" />
-            Ver historial
+            <Plus className="h-5 w-5" />
+            Nuevo paciente
           </Link>
         </div>
       </div>
@@ -45,25 +60,45 @@ export default function HomePage() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 text-primary animate-spin" />
         </div>
-      ) : stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total documentos" value={stats.totalDocuments} icon={FileText} />
-          <StatCard label="Procesados" value={stats.completed} icon={CheckCircle} color="text-green-600" />
-          <StatCard label="En proceso" value={stats.processing} icon={Loader2} color="text-blue-600" />
-          <StatCard label="Fallidos" value={stats.failed} icon={AlertCircle} color="text-red-600" />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <StatCard label="Pacientes" value={patientStats?.totalPatients || 0} icon={Users} color="text-primary" />
+          <StatCard label="Total documentos" value={stats?.totalDocuments || 0} icon={FileText} />
+          <StatCard label="Procesados" value={stats?.completed || 0} icon={CheckCircle} color="text-green-600" />
+          <StatCard label="En proceso" value={stats?.processing || 0} icon={Loader2} color="text-blue-600" />
+          <StatCard label="Fallidos" value={stats?.failed || 0} icon={AlertCircle} color="text-red-600" />
         </div>
-      ) : null}
+      )}
 
-      {/* Document types */}
-      {stats && Object.keys(stats.documentTypes).length > 0 && (
+      {/* Recent patients */}
+      {recentPatients && recentPatients.length > 0 && (
         <div className="border rounded-xl p-6">
-          <h2 className="font-semibold text-lg mb-4">Tipos de documentos</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {Object.entries(stats.documentTypes).map(([type, count]) => (
-              <div key={type} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <span className="capitalize font-medium">{type}</span>
-                <span className="text-muted-foreground">{count}</span>
-              </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              Pacientes recientes
+            </h2>
+            <Link href="/patients" className="text-sm text-primary hover:underline">
+              Ver todos
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {recentPatients.map((patient) => (
+              <Link key={patient.id} href={`/patients/${patient.id}`}>
+                <div className="border rounded-xl p-4 bg-card hover:shadow-md transition-all cursor-pointer text-center">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2 text-lg font-bold">
+                    {patient.firstName[0]}{patient.lastName[0]}
+                  </div>
+                  <p className="font-medium text-sm truncate">
+                    {patient.firstName} {patient.lastName}
+                  </p>
+                  {patient.lastVisit && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(patient.lastVisit).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                    </p>
+                  )}
+                </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -72,10 +107,11 @@ export default function HomePage() {
       {/* How it works */}
       <div className="border rounded-xl p-6">
         <h2 className="font-semibold text-lg mb-4">Como funciona</h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          <Step num={1} title="Sube tu documento" desc="Arrastra imagenes o PDFs de tus documentos medicos escaneados" />
-          <Step num={2} title="IA extrae los datos" desc="Claude Vision o GPT-4o analizan la imagen y extraen datos estructurados" />
-          <Step num={3} title="Revisa tu historial" desc="Los datos se organizan automaticamente: diagnosticos, medicamentos, resultados" />
+        <div className="grid md:grid-cols-4 gap-6">
+          <Step num={1} title="Registra pacientes" desc="Crea un perfil para cada paciente con su informacion basica" />
+          <Step num={2} title="Selecciona un paciente" desc="Elige el paciente al que vas a subir documentos o grabar consulta" />
+          <Step num={3} title="Sube documentos" desc="Escanea recetas, laboratorios, radiografias u otros documentos" />
+          <Step num={4} title="IA extrae los datos" desc="La informacion se estructura y guarda en el historial del paciente" />
         </div>
       </div>
     </div>

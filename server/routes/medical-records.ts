@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { db } from "../db.js";
-import { medicalDocuments, medicalRecords } from "@shared/schema";
+import { medicalDocuments, medicalRecords, patients } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { processDocument } from "../services/ocr.js";
 
@@ -43,11 +43,14 @@ router.post("/documents/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No se proporcionó archivo" });
     }
 
+    const patientId = req.body.patientId ? parseInt(req.body.patientId) : null;
+
     const [doc] = await db.insert(medicalDocuments).values({
       originalFilename: req.file.originalname,
       storagePath: req.file.path,
       mimeType: req.file.mimetype,
       fileSize: req.file.size,
+      patientId,
       status: "uploaded",
     }).returning();
 
@@ -81,6 +84,7 @@ router.post("/documents/:id/process", async (req, res) => {
       // Save extraction results
       const [record] = await db.insert(medicalRecords).values({
         documentId: docId,
+        patientId: doc.patientId,
         rawText: result.extraction.summary || "",
         documentType: result.extraction.documentType,
         documentDate: result.extraction.documentDate,
@@ -102,6 +106,11 @@ router.post("/documents/:id/process", async (req, res) => {
         status: "completed",
         processedAt: new Date(),
       }).where(eq(medicalDocuments.id, docId));
+
+      // Update patient's lastVisit
+      if (doc.patientId) {
+        await db.update(patients).set({ lastVisit: new Date() }).where(eq(patients.id, doc.patientId));
+      }
 
       res.json({ document: { ...doc, status: "completed" }, record });
     } catch (ocrError) {

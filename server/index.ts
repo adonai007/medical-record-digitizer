@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import medicalRecordsRouter from "./routes/medical-records.js";
+import patientsRouter from "./routes/patients.js";
+import settingsRouter from "./routes/settings.js";
 import { setupVite, serveStatic } from "./vite.js";
 
 const app = express();
@@ -10,6 +12,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // API routes
 app.use("/api", medicalRecordsRouter);
+app.use("/api", patientsRouter);
+app.use("/api", settingsRouter);
 
 // Health check
 app.get("/api/health", (_req, res) => {
